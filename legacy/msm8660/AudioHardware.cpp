@@ -17,7 +17,7 @@
 
 #include <math.h>
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #define LOG_TAG "AudioHardwareMSM8660"
 #include <utils/Log.h>
 #include <utils/String8.h>
@@ -542,6 +542,7 @@ static status_t updateDeviceInfo(int rx_device,int tx_device) {
             case FM_RADIO:
             case FM_A2DP:
 #endif
+                ALOGV("updateDeviceInfo: FM");
                 if(rx_device == INVALID_DEVICE)
                     return -1;
                 ALOGD("The node type is %d", temp_ptr->stream_type);
@@ -1403,10 +1404,10 @@ status_t AudioHardware::setParameters(const String8& keyValuePairs)
     const char BT_NAME_KEY[] = "bt_headset_name";
     const char BT_NREC_VALUE_ON[] = "on";
 #ifdef QCOM_FM_ENABLED
-    const char FM_NAME_KEY[] = "FMRadioOn";
-    const char FM_VALUE_HANDSET[] = "handset";
-    const char FM_VALUE_SPEAKER[] = "speaker";
-    const char FM_VALUE_HEADSET[] = "headset";
+    const char FM_NAME_KEY[] = "fm_route";
+    const char FM_VALUE_HANDSET[] = "fm_handset";
+    const char FM_VALUE_SPEAKER[] = "fm_speaker";
+    const char FM_VALUE_HEADSET[] = "fm_headset";
     const char FM_VALUE_FALSE[] = "false";
     float fm_volume;
 #endif
@@ -1575,6 +1576,33 @@ status_t AudioHardware::setParameters(const String8& keyValuePairs)
         ALOGV("msm_set_volume(%d) for FM succeeded", fm_volume);
 
         param.remove(key);
+    }
+
+    key = String8(FM_NAME_KEY);
+    if(param.get(key,value) == NO_ERROR)
+    {
+       if(value == FM_VALUE_HANDSET) {
+           fmState  = FM_ON;
+           fmDevice = SND_DEVICE_FM_HANDSET;
+           doRouting(NULL);
+
+       }
+       else if(value == FM_VALUE_SPEAKER) {
+           fmState  = FM_ON;
+           fmDevice = SND_DEVICE_FM_SPEAKER;
+           doRouting(NULL);
+       }
+       if(value == FM_VALUE_HEADSET) {
+           fmState  = FM_ON;
+           fmDevice = SND_DEVICE_FM_HEADSET;
+           doRouting(NULL);
+       }
+       else if(value == FM_VALUE_FALSE) {
+           fmState = FM_OFF;
+           // Need to provide some device id for FM routing to go through
+           fmDevice = SND_DEVICE_FM_HANDSET;
+           doRouting(NULL);
+       }
     }
 #endif /*QCOM_FM_ENABLED*/
 
@@ -1969,7 +1997,7 @@ status_t do_tpa2051_control(int mode)
         cur_tpa_mode = tpa_mode;
         rc = ioctl(fd, TPA2051_SET_MODE, &tpa_mode);
         if (rc < 0)
-            ALOGE("ioctl TPA2051_SET_MODE failed: %s", strerror(errno));
+            ALOGE("ioctl TPA2051_SET_MODE to %d cur_rx = %d failed: %s", tpa_mode, cur_rx, strerror(errno));
         else
             ALOGD("update TPA2051_SET_MODE to mode %d success", tpa_mode);
     }
@@ -2012,14 +2040,17 @@ static status_t do_route_audio_rpc(uint32_t device,
 #ifdef QCOM_FM_ENABLED
     else if (device == SND_DEVICE_FM_HANDSET) {
         fm_device = DEVICE_FMRADIO_HANDSET_RX;
+        new_rx_device = DEVICE_FMRADIO_HANDSET_RX;
         ALOGV("In FM HANDSET");
     }
     else if(device == SND_DEVICE_FM_SPEAKER) {
         fm_device = DEVICE_FMRADIO_SPEAKER_RX;
+        new_rx_device = DEVICE_FMRADIO_SPEAKER_RX;
         ALOGV("In FM SPEAKER");
     }
     else if(device == SND_DEVICE_FM_HEADSET) {
         fm_device = DEVICE_FMRADIO_HEADSET_RX;
+        new_rx_device = DEVICE_FMRADIO_HEADSET_RX;
         ALOGV("In FM HEADSET");
     }
 #endif
@@ -2259,13 +2290,50 @@ static status_t do_route_audio_rpc(uint32_t device,
             cur_tx = new_tx_device;
         }
     }
+    else if(fmState == FM_OFF && isStreamOnAndActive(FM_RADIO)) {
+        //disable FM RADIO
+        ALOGV("Disable FM");
+        temp = getNodeByStreamType(FM_RADIO);
+        if(temp == NULL)
+            return -1;
+
+        msm_en_device(DEV_ID(temp->dev_id),0);
+        deleteFromTable(FM_RADIO);
+        fmState = FM_INVALID;
+        fmDevice = INVALID_DEVICE;
+    }
+    else if(fmState == FM_ON && isStreamOnAndInactive(FM_RADIO)) {
+        ALOGV("Enable FM which was in dormant mode");
+        temp = getNodeByStreamType(FM_RADIO);
+        if(temp == NULL)
+            return -1;
+        modifyActiveStateOfStream(FM_RADIO,true);
+        msm_en_device(DEV_ID(temp->dev_id),1);
+    }
+    else if(fmState == FM_ON &&  fmDevice != INVALID_DEVICE) {
+        ALOGV("Going to enable fm radio");
+        if(cur_rx != INVALID_DEVICE)
+            msm_en_device(DEV_ID(cur_rx),0);
+        if(fm_device != INVALID_DEVICE) {
+           if(msm_en_device(DEV_ID(fm_device), 1)) {
+                ALOGE("msm_en_device[%d],1 failed errno = %d",DEV_ID(fm_device),errno);
+                return 0;
+            }
+            if(!isDeviceListEmpty())
+               updateDeviceInfo(new_rx_device,new_tx_device);
+            addToTable(0,fm_device,INVALID_DEVICE,FM_RADIO,true);
+        }
+        //clear the fm routing info so that future routing to other devices
+        //are not affected
+        fmDevice = INVALID_DEVICE;
+     }
     else {
         ALOGD("updateDeviceInfo() called for default case");
         updateDeviceInfo(new_rx_device,new_tx_device);
     }
 #ifdef HTC_ACOUSTIC_AUDIO
     if (support_tpa2051)
-        do_tpa2051_control(mode ^1);
+        do_tpa2051_control(mode);
 #endif
     return NO_ERROR;
 }
@@ -2422,6 +2490,15 @@ status_t AudioHardware::do_aic3254_control(uint32_t device) {
                 case SND_DEVICE_NO_MIC_HEADSET_BACK_MIC:
                     new_aic_rxmode = PLAYBACK_HEADSET;
                     break;
+
+                case SND_DEVICE_FM_HEADSET:
+                    new_aic_rxmode = FM_OUT_HEADSET;
+                    new_aic_txmode = FM_IN_HEADSET;
+                    break;
+
+                case SND_DEVICE_FM_SPEAKER:
+                    new_aic_rxmode = FM_OUT_SPEAKER;
+                    new_aic_txmode = FM_IN_SPEAKER;
                 default:
                     break;
             }
@@ -2607,6 +2684,14 @@ status_t AudioHardware::doRouting(AudioStreamInMSM8x60 *input, uint32_t outputDe
         outputDevices = mOutput->devices();
 
     ALOGD("outputDevices = %x", outputDevices);
+
+    // handle fm device routing separately
+    if(fmState != FM_INVALID && fmDevice != INVALID_DEVICE) {
+        ALOGD("mCurSndDevice = %x", fmDevice);
+        mCurSndDevice = fmDevice;
+        ret = doAudioRouteOrMute(fmDevice);
+        return ret;
+    }
 
     if (input != NULL) {
         uint32_t inputDevice = input->devices();
@@ -2890,6 +2975,7 @@ status_t AudioHardware::doRouting(AudioStreamInMSM8x60 *input, uint32_t outputDe
 
     if (sndDevice != -1 && sndDevice != mCurSndDevice) {
         ret = doAudioRouteOrMute(sndDevice);
+        ALOGD("mCurSndDevice = %x", sndDevice);
         mCurSndDevice = sndDevice;
     }
 #ifdef QCOM_ANC_HEADSET_ENABLED
