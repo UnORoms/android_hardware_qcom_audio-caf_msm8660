@@ -233,6 +233,7 @@ private:
 #endif
 #ifdef QCOM_FM_ENABLED
     status_t    enableFM(int sndDevice);
+    status_t    setFmVolume(float fm_volume);
 #endif
     status_t    enableComboDevice(uint32_t sndDevice, bool enableOrDisable);
 #ifdef QCOM_FM_ENABLED

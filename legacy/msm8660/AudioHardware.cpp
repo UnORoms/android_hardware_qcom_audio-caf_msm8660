@@ -1394,6 +1394,31 @@ status_t AudioHardware::getMicMute(bool* state)
     return NO_ERROR;
 }
 
+status_t AudioHardware::setFmVolume(float v)
+{
+    int vol = android::AudioSystem::logToLinear( (v?(v + 0.005):v) );
+    if ( vol > 100 ) {
+        vol = 100;
+    }
+    else if ( vol < 0 ) {
+        vol = 0;
+    }
+    ALOGV("setFmVolume(%f)\n", v);
+    ALOGV("Setting FM volume to %d (available range is 0 to 100)\n", vol);
+    Routing_table* temp = NULL;
+    temp = getNodeByStreamType(FM_RADIO);
+    if(temp == NULL){
+        ALOGV("No Active FM stream is running");
+        return NO_ERROR;
+    }
+    if(msm_set_volume(temp->dec_id, vol)) {
+        ALOGE("msm_set_volume(%d) failed for FM errno = %d",vol,errno);
+        return -1;
+    }
+    ALOGV("msm_set_volume(%d) for FM succeeded",vol);
+    return NO_ERROR;
+}
+
 status_t AudioHardware::setParameters(const String8& keyValuePairs)
 {
     AudioParameter param = AudioParameter(keyValuePairs);
@@ -1408,7 +1433,7 @@ status_t AudioHardware::setParameters(const String8& keyValuePairs)
     const char FM_VALUE_HANDSET[] = "fm_handset";
     const char FM_VALUE_SPEAKER[] = "fm_speaker";
     const char FM_VALUE_HEADSET[] = "fm_headset";
-    const char FM_VALUE_FALSE[] = "false";
+    const char FM_VALUE_DISABLED[] = "disabled";
     float fm_volume;
 #endif
 #ifdef HTC_ACOUSTIC_AUDIO
@@ -1551,36 +1576,14 @@ status_t AudioHardware::setParameters(const String8& keyValuePairs)
     key = String8(AUDIO_PARAMETER_KEY_FM_VOLUME);
 
     if (param.getFloat(key, fm_volume) == NO_ERROR) {
-        if (fm_volume < 0.0) {
-            ALOGW("set Fm Volume(%f) under 0.0, assuming 0.0\n", fm_volume);
-            fm_volume = 0.0;
-        } else if (fm_volume > 1.0) {
-            ALOGW("set Fm Volume(%f) over 1.0, assuming 1.0\n", fm_volume);
-            fm_volume = 1.0;
-        }
-        fm_volume = lrint((fm_volume * 0x2000) + 0.5);
-
-        ALOGV("set Fm Volume(%f)\n", fm_volume);
-        ALOGV("Setting FM volume to %d (available range is 0 to 0x2000)\n", fm_volume);
-
-        Routing_table* temp = NULL;
-        temp = getNodeByStreamType(FM_RADIO);
-        if(temp == NULL){
-            ALOGV("No Active FM stream is running");
-            return NO_ERROR;
-        }
-        if(msm_set_volume(temp->dec_id, fm_volume)) {
-            ALOGE("msm_set_volume(%d) failed for FM errno = %d", fm_volume, errno);
-            return -1;
-        }
-        ALOGV("msm_set_volume(%d) for FM succeeded", fm_volume);
-
+        setFmVolume(fm_volume);
         param.remove(key);
     }
 
     key = String8(FM_NAME_KEY);
     if(param.get(key,value) == NO_ERROR)
     {
+        ALOGI("Do something with FM");
        if(value == FM_VALUE_HANDSET) {
            fmState  = FM_ON;
            fmDevice = SND_DEVICE_FM_HANDSET;
@@ -1597,7 +1600,9 @@ status_t AudioHardware::setParameters(const String8& keyValuePairs)
            fmDevice = SND_DEVICE_FM_HEADSET;
            doRouting(NULL);
        }
-       else if(value == FM_VALUE_FALSE) {
+       else if(value == FM_VALUE_DISABLED) {
+
+            ALOGI("Disable FM");
            fmState = FM_OFF;
            // Need to provide some device id for FM routing to go through
            fmDevice = SND_DEVICE_FM_HANDSET;
@@ -2290,7 +2295,7 @@ static status_t do_route_audio_rpc(uint32_t device,
             cur_tx = new_tx_device;
         }
     }
-    else if(fmState == FM_OFF && isStreamOnAndActive(FM_RADIO)) {
+    else if(fmState == FM_OFF) {
         //disable FM RADIO
         ALOGV("Disable FM");
         temp = getNodeByStreamType(FM_RADIO);
@@ -2690,7 +2695,8 @@ status_t AudioHardware::doRouting(AudioStreamInMSM8x60 *input, uint32_t outputDe
         ALOGD("mCurSndDevice = %x", fmDevice);
         mCurSndDevice = fmDevice;
         ret = doAudioRouteOrMute(fmDevice);
-        return ret;
+        if(fmState != FM_INVALID)
+           return ret;
     }
 
     if (input != NULL) {
@@ -3947,12 +3953,20 @@ status_t AudioHardware::AudioStreamOutMSM8x60::setParameters(const String8& keyV
     String8 key = String8(AudioParameter::keyRouting);
     status_t status = NO_ERROR;
     int device;
+    float fm_volume;
     ALOGV("AudioStreamOutMSM8x60::setParameters() %s", keyValuePairs.string());
 
     if (param.getInt(key, device) == NO_ERROR) {
         mDevices = device;
         ALOGV("set output routing %x", mDevices);
         status = mHardware->doRouting(NULL, device);
+        param.remove(key);
+    }
+
+    key = String8(AUDIO_PARAMETER_KEY_FM_VOLUME);
+
+    if (param.getFloat(key, fm_volume) == NO_ERROR) {
+        mHardware->setFmVolume(fm_volume);
         param.remove(key);
     }
 
