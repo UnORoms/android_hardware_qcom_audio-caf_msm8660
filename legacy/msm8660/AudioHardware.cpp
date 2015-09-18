@@ -2264,8 +2264,57 @@ static status_t do_route_audio_rpc(uint32_t device,
             cur_tx = new_tx_device;
             addToTable(0,cur_rx,cur_tx,VOICE_CALL,true);
     }
+
+    else if ((mode == AUDIO_MODE_IN_COMMUNICATION) && !isStreamOn(VOICE_CALL)) {
+        ALOGV("Going to enable RX/TX device for voice VoIP stream");
+            // Routing Voice
+            if ( (new_rx_device != INVALID_DEVICE) && (new_tx_device != INVALID_DEVICE))
+            {
+#ifdef QCOM_ACDB_ENABLED
+                initACDB();
+                acdb_loader_send_voice_cal(ACDB_ID(new_rx_device),ACDB_ID(new_tx_device));
+#endif
+                ALOGD("Starting voice(VoIP) on Rx %d and Tx %d device", DEV_ID(new_rx_device), DEV_ID(new_tx_device));
+                msm_route_voice(DEV_ID(new_rx_device),DEV_ID(new_tx_device), 1);
+            }
+            else
+            {
+                return -1;
+            }
+
+            if(cur_rx != INVALID_DEVICE && (enableDevice(cur_rx,0) == -1))
+                    return -1;
+
+            if(cur_tx != INVALID_DEVICE&&(enableDevice(cur_tx,0) == -1))
+                    return -1;
+
+           //Enable RX device
+           if(new_rx_device !=INVALID_DEVICE && (enableDevice(new_rx_device,1) == -1))
+               return -1;
+            //Enable TX device
+           if(new_tx_device !=INVALID_DEVICE && (enableDevice(new_tx_device,1) == -1))
+               return -1;
+#ifdef LEGACY_QCOM_VOICE
+           msm_set_voice_tx_mute(0);
+#else
+           voice_session_id = msm_get_voc_session(VOICE_SESSION_NAME);
+           if(voice_session_id <=0) {
+                ALOGE("voice session invalid");
+                return 0;
+           }
+           msm_start_voice_ext(voice_session_id);
+           msm_set_voice_tx_mute_ext(voice_session_mute,voice_session_id);
+#endif
+
+           if(!isDeviceListEmpty())
+               updateDeviceInfo(new_rx_device,new_tx_device);
+            cur_rx = new_rx_device;
+            cur_tx = new_tx_device;
+            addToTable(0,cur_rx,cur_tx,PCM_REC,true);
+    }
+
     else if ((mode == AUDIO_MODE_NORMAL) && isStreamOnAndActive(VOICE_CALL)) {
-        ALOGV("Going to disable RX/TX device during end of voice call");
+        ALOGV("Going to disable RX/TX device during end of VoIP voice call");
         temp = getNodeByStreamType(VOICE_CALL);
         if(temp == NULL)
             return 0;
