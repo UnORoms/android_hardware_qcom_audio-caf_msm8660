@@ -78,7 +78,7 @@ LOCAL_MODULE := audio.primary.msm8660
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_CFLAGS += -fno-short-enums -Wno-type-limits -Wno-pointer-arith -Wno-sign-compare -Wno-reorder -Wno-format -Wno-conversion-null -Wno-strict-aliasing -Wno-return-type -Wno-missing-field-initializers
+LOCAL_CFLAGS += -fno-short-enums -Wno-type-limits -Wno-narrowing -Wno-pointer-arith -Wno-sign-compare -Wno-reorder -Wno-format -Wno-conversion-null -Wno-strict-aliasing -Wno-return-type -Wno-missing-field-initializers
 
 LOCAL_C_INCLUDES := $(TARGET_OUT_HEADERS)/mm-audio/audio-alsa
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audcal
