@@ -1394,6 +1394,7 @@ status_t AudioHardware::getMicMute(bool* state)
     return NO_ERROR;
 }
 
+#ifdef QCOM_FM_ENABLED
 status_t AudioHardware::setFmVolume(float v)
 {
     int vol = android::AudioSystem::logToLinear( (v?(v + 0.005):v) );
@@ -1418,6 +1419,7 @@ status_t AudioHardware::setFmVolume(float v)
     ALOGV("msm_set_volume(%d) for FM succeeded",vol);
     return NO_ERROR;
 }
+#endif
 
 status_t AudioHardware::setParameters(const String8& keyValuePairs)
 {
@@ -2295,6 +2297,7 @@ static status_t do_route_audio_rpc(uint32_t device,
             cur_tx = new_tx_device;
         }
     }
+#ifdef QCOM_FM_ENABLED
     else if(fmState == FM_OFF) {
         //disable FM RADIO
         ALOGV("Disable FM");
@@ -2331,7 +2334,8 @@ static status_t do_route_audio_rpc(uint32_t device,
         //clear the fm routing info so that future routing to other devices
         //are not affected
         fmDevice = INVALID_DEVICE;
-     }
+    }
+#endif //QCOM_FM_ENABLED
     else {
         ALOGD("updateDeviceInfo() called for default case");
         updateDeviceInfo(new_rx_device,new_tx_device);
@@ -2690,6 +2694,7 @@ status_t AudioHardware::doRouting(AudioStreamInMSM8x60 *input, uint32_t outputDe
 
     ALOGD("outputDevices = %x", outputDevices);
 
+#ifdef QCOM_FM_ENABLED
     // handle fm device routing separately
     if(fmState != FM_INVALID && fmDevice != INVALID_DEVICE) {
         ALOGD("mCurSndDevice = %x", fmDevice);
@@ -2698,7 +2703,7 @@ status_t AudioHardware::doRouting(AudioStreamInMSM8x60 *input, uint32_t outputDe
         if(fmState != FM_INVALID)
            return ret;
     }
-
+#endif
     if (input != NULL) {
         uint32_t inputDevice = input->devices();
         ALOGI("do input routing device %x\n", inputDevice);
@@ -3962,14 +3967,14 @@ status_t AudioHardware::AudioStreamOutMSM8x60::setParameters(const String8& keyV
         status = mHardware->doRouting(NULL, device);
         param.remove(key);
     }
-
+#ifdef QCOM_FM_ENABLED
     key = String8(AUDIO_PARAMETER_KEY_FM_VOLUME);
 
     if (param.getFloat(key, fm_volume) == NO_ERROR) {
         mHardware->setFmVolume(fm_volume);
         param.remove(key);
     }
-
+#endif
     if (param.size()) {
         status = BAD_VALUE;
     }

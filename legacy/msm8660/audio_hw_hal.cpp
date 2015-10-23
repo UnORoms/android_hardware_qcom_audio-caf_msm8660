@@ -266,7 +266,7 @@ static int out_get_render_position(const struct audio_stream_out *stream,
         reinterpret_cast<const struct qcom_stream_out *>(stream);
     return out->qcom_out->getRenderPosition(dsp_frames);
 }
-
+#ifdef QCOM_TUNNEL_LPA_ENABLED
 static int out_set_observer(const struct audio_stream_out *stream,
                                    void *observer)
 {
@@ -318,7 +318,7 @@ static status_t out_stop(struct audio_stream_out *stream)
         reinterpret_cast<struct qcom_stream_out *>(stream);
     return out->qcom_out->stop();
 }
-
+#endif //QCOM_TUNNEL_LPA_ENABLED
 static int out_add_audio_effect(const struct audio_stream *stream, effect_handle_t effect)
 {
     return 0;
@@ -664,6 +664,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->stream.write = out_write;
     out->stream.get_render_position = out_get_render_position;
     out->stream.get_next_write_timestamp = out_get_next_write_timestamp;
+#ifdef QCOM_TUNNEL_LPA_ENABLED
     out->stream.start = out_start;
     out->stream.pause = out_pause;
     out->stream.flush = out_flush;
@@ -671,7 +672,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->stream.set_observer = out_set_observer;
     out->stream.get_buffer_info = out_get_buffer_info;
     out->stream.is_buffer_available = out_is_buffer_available;
-
+#endif
     *stream_out = &out->stream;
     return 0;
 

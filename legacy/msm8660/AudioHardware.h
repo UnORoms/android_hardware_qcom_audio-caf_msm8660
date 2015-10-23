@@ -400,10 +400,11 @@ public:
     virtual status_t getPresentationPosition(uint64_t *frames, struct timespec *timestamp);
 
     virtual status_t    getNextWriteTimestamp(int64_t *timestamp);
+#ifdef QCOM_TUNNEL_LPA_ENABLED 
     virtual status_t    setObserver(void *observer);
     virtual status_t    getBufferInfo(buf_info **buf);
     virtual status_t    isBufferAvailable(int *isAvail);
-
+#endif
     void* memBufferAlloc(int nSize, int32_t *ion_fd);
 
 private:
@@ -423,8 +424,9 @@ private:
     bool                mEosEventReceived;
     uint32_t    mDevices;
     AudioHardware* mHardware;
+#ifdef QCOM_TUNNEL_LPA_ENABLED
     AudioEventObserver *mObserver;
-
+#endif
     void                createEventThread();
     void                bufferAlloc();
     void                bufferDeAlloc();
