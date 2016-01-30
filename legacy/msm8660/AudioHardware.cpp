@@ -678,16 +678,19 @@ free(device_list);
 // ----------------------------------------------------------------------------
 
 AudioHardware::AudioHardware() :
-    mInit(false), mMicMute(true), mBluetoothNrec(true), mBluetoothId(0),
+    mInit(false), mMicMute(true), mFmFd(-1), mBluetoothNrec(true), mBluetoothVGS(false), mBluetoothId(0),
 #ifdef HTC_ACOUSTIC_AUDIO
     mHACSetting(false), mBluetoothIdTx(0), mBluetoothIdRx(0),
 #endif
-    mOutput(0),mBluetoothVGS(false),
-    mCurSndDevice(-1),
-    mTtyMode(TTY_OFF), mFmFd(-1), mNumPcmRec(0)
+    mOutput(0),
 #ifdef QCOM_VOIP_ENABLED
-    ,mVoipFd(-1), mVoipInActive(false), mVoipOutActive(false), mDirectOutput(0), mVoipBitRate(0),
-    mDirectOutrefCnt(0)
+    mDirectOutput(0),
+#endif
+    mVoipBitRate(0),
+    mCurSndDevice(-1),
+    mTtyMode(TTY_OFF), mNumPcmRec(0)
+#ifdef QCOM_VOIP_ENABLED
+    ,mVoipFd(-1), mVoipInActive(false), mVoipOutActive(false), mDirectOutrefCnt(0)
 #endif
 #ifdef HTC_ACOUSTIC_AUDIO
     , mRecordState(false), mEffectEnabled(false)
