@@ -542,6 +542,8 @@ static status_t updateDeviceInfo(int rx_device,int tx_device) {
                 ALOGV("updateDeviceInfo: FM");
                 if(rx_device == INVALID_DEVICE)
                     return -1;
+                if(rx_device == temp_ptr->dev_id)
+                    break;
                 ALOGD("The node type is %d", temp_ptr->stream_type);
                 ALOGV("rx_device = %d,temp_ptr->dev_id = %d",rx_device,temp_ptr->dev_id);
                 if(rx_device != temp_ptr->dev_id) {
