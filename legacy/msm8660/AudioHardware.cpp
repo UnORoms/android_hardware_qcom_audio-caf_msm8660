@@ -608,6 +608,8 @@ static status_t updateDeviceInfo(int rx_device,int tx_device) {
 #endif
                 if(rx_device == INVALID_DEVICE || tx_device == INVALID_DEVICE)
                     return -1;
+                if(rx_device == temp_ptr->dev_id && tx_device == temp_ptr->dev_id_tx)
+                    break;
                 ALOGD("case VOICE_CALL/VOIP CALL %d",temp_ptr->stream_type);
 #ifdef QCOM_ACDB_ENABLED
     #ifdef HTC_ACOUSTIC_AUDIO
